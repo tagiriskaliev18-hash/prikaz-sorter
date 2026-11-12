@@ -42,36 +42,53 @@ function createMockItem(partial: Partial<OrderDocumentItem>): OrderDocumentItem 
 
 describe('renamer', () => {
   describe('DEFAULT_NAMING_SETTINGS and TEMPLATE_PRESETS', () => {
-    it('defines valid DEFAULT_NAMING_SETTINGS with all required keys', () => {
+    it('defines valid DEFAULT_NAMING_SETTINGS matching ЭХД-safe standard "650 ПР Искалиев Т."', () => {
       expect(DEFAULT_NAMING_SETTINGS).toBeDefined();
-      expect(DEFAULT_NAMING_SETTINGS.template).toBeTypeOf('string');
-      expect(DEFAULT_NAMING_SETTINGS.template.length).toBeGreaterThan(0);
+      expect(DEFAULT_NAMING_SETTINGS.template).toBe('{number} {fio}');
       expect(DEFAULT_NAMING_SETTINGS.normalizeFioCase).toBeTypeOf('boolean');
-      expect(['full', 'short', 'surname']).toContain(DEFAULT_NAMING_SETTINGS.fioFormat);
-      expect(['-', '_', '']).toContain(DEFAULT_NAMING_SETTINGS.slashReplacement);
+      expect(['full', 'short', 'initial', 'surname']).toContain(DEFAULT_NAMING_SETTINGS.fioFormat);
+      expect(DEFAULT_NAMING_SETTINGS.fioFormat).toBe('initial');
+      expect([' ', '']).toContain(DEFAULT_NAMING_SETTINGS.slashReplacement);
       expect(DEFAULT_NAMING_SETTINGS.missingNumberLabel).toBeTypeOf('string');
-      expect(DEFAULT_NAMING_SETTINGS.missingFioLabel).toBeTypeOf('string');
+      expect(DEFAULT_NAMING_SETTINGS.missingFioLabel).toBe('Без ФИО');
     });
 
-    it('defines TEMPLATE_PRESETS with available presets', () => {
+    it('defines TEMPLATE_PRESETS with standard preset first and only letters, digits, spaces, and dots', () => {
       expect(TEMPLATE_PRESETS).toBeDefined();
-      expect(Object.keys(TEMPLATE_PRESETS).length).toBeGreaterThan(0);
+      expect(TEMPLATE_PRESETS.length).toBeGreaterThan(0);
+      expect(TEMPLATE_PRESETS[0].id).toBe('standard');
+      expect(TEMPLATE_PRESETS[0].label).toBe('650 ПР Искалиев Т.');
+      expect(TEMPLATE_PRESETS[0].template).toBe('{number} {fio}');
+      for (const preset of TEMPLATE_PRESETS) {
+        expect(preset.label).toMatch(/^[\p{L}\p{N}.\s]+$/u);
+        expect(preset.template).not.toMatch(/[_№-]/);
+      }
     });
   });
 
   describe('sanitizeFileNamePart', () => {
-    it('replaces or removes forbidden Windows characters (< > : " / \\ | ? *)', () => {
-      const forbidden = 'Doc<1>:Name"With/Slash\\Backslash|Pipe?Question*Star';
+    it('allows only letters, digits, spaces, and dots (.)', () => {
+      const forbidden = 'Doc<1>:Name"With/Slash\\Backslash|Pipe?Question*Star_Under-Hyphen(Paren)';
       const sanitized = sanitizeFileNamePart(forbidden);
 
-      expect(sanitized).not.toMatch(/[<>:"/\\|?*]/);
+      expect(sanitized).toMatch(/^[\p{L}\p{N}.\s]+$/u);
+      expect(sanitized).not.toMatch(/[_<>:"/\\|?*№()-]/);
       expect(sanitized.length).toBeGreaterThan(0);
     });
 
     it('respects slashReplacement option for order number slashes', () => {
-      expect(sanitizeFileNamePart('124/к', '-')).toBe('124-к');
-      expect(sanitizeFileNamePart('124/к', '_')).toBe('124_к');
+      expect(sanitizeFileNamePart('124/к', ' ')).toBe('124 к');
+      expect(sanitizeFileNamePart('650/ПР', ' ')).toBe('650 ПР');
       expect(sanitizeFileNamePart('124/к', '')).toBe('124к');
+    });
+
+    it('strips underscores, hyphens, №, parentheses, and all punctuation except dot', () => {
+      expect(sanitizeFileNamePart('Приказ № 650-ПР «Искалиев_Т.» #1 & % (копия)')).toBe(
+        'Приказ 650 ПР Искалиев Т. 1 копия'
+      );
+      expect(sanitizeFileNamePart('№650_ПР')).toBe('650 ПР');
+      expect(sanitizeFileNamePart('124–к')).toBe('124 к');
+      expect(sanitizeFileNamePart('12.02.2026')).toBe('12.02.2026');
     });
 
     it('handles Windows reserved device names (CON, PRN, AUX, NUL, COM1..COM9, LPT1..LPT9)', () => {
@@ -90,7 +107,7 @@ describe('renamer', () => {
     });
 
     it('collapses multiple whitespace characters into a single space', () => {
-      expect(sanitizeFileNamePart('Приказ    №   12')).toBe('Приказ № 12');
+      expect(sanitizeFileNamePart('Приказ    12')).toBe('Приказ 12');
     });
   });
 
@@ -111,6 +128,15 @@ describe('renamer', () => {
         { normalizeFioCase: false, fioFormat: 'full' }
       );
       expect(result).toBe('Иванова Ивана Ивановича');
+    });
+
+    it('returns single-initial FIO ("Искалиев Т.") when fioFormat is initial', () => {
+      const result = formatFioBySettings(
+        'Искалиеву Талгату Бекболатовичу',
+        'Искалиев Талгат Бекболатович',
+        { normalizeFioCase: true, fioFormat: 'initial' }
+      );
+      expect(result).toBe('Искалиев Т.');
     });
 
     it('returns short FIO ("Иванов И.И.") when fioFormat is short', () => {
@@ -146,25 +172,41 @@ describe('renamer', () => {
       template: '{number} {fio}',
       normalizeFioCase: true,
       fioFormat: 'full',
-      slashReplacement: '-',
+      slashReplacement: ' ',
       missingNumberLabel: 'БН',
-      missingFioLabel: 'Без_ФИО',
+      missingFioLabel: 'Без ФИО',
     };
 
-    it('builds filename using {number} {fio} template', () => {
+    it('produces exact default format "650 ПР Искалиев Т." using DEFAULT_NAMING_SETTINGS', () => {
+      const fio = formatFioBySettings(
+        'Искалиева Талгата Маратовича',
+        'Искалиев Талгат Маратович',
+        DEFAULT_NAMING_SETTINGS
+      );
+      const name = buildBaseFileName({
+        orderNumber: '№ 650-ПР',
+        fio,
+        originalName: 'Приказ №650 «ПР»_черновик.docx',
+        settings: DEFAULT_NAMING_SETTINGS,
+      });
+      expect(name).toBe('650 ПР Искалиев Т.');
+      expect(name).toMatch(/^[\p{L}\p{N}.\s]+$/u);
+    });
+
+    it('builds filename using {number} {fio} template without underscores or hyphens', () => {
       const name = buildBaseFileName({
         orderNumber: '124-к',
         fio: 'Иванов Иван Иванович',
         originalName: 'scan.docx',
         settings,
       });
-      expect(name).toBe('124-к Иванов Иван Иванович');
+      expect(name).toBe('124 к Иванов Иван Иванович');
     });
 
-    it('builds filename with {date}_{number}_{fio}', () => {
+    it('builds filename with {date} {number} {fio}', () => {
       const customSettings = {
         ...settings,
-        template: '{date}_{number}_{fio}',
+        template: '{date} {number} {fio}',
       };
       const name = buildBaseFileName({
         orderNumber: '88',
@@ -173,24 +215,22 @@ describe('renamer', () => {
         originalName: 'doc.pdf',
         settings: customSettings,
       });
-      expect(name).toContain('12.02.2026');
-      expect(name).toContain('88');
-      expect(name).toContain('Петров П.П.');
+      expect(name).toBe('12.02.2026 88 Петров П.П.');
     });
 
     it('builds filename using original name placeholder {orig}', () => {
       const customSettings = {
         ...settings,
-        template: '{orig} - {number}',
+        template: '{orig} {number}',
       };
       const name = buildBaseFileName({
         orderNumber: '42',
         fio: 'Иванов И.И.',
-        originalName: 'MyOrderDraft.pdf',
+        originalName: 'My_Order-Draft.pdf',
         settings: customSettings,
       });
-      // {orig} should refer to base name without .pdf extension
-      expect(name).toBe('MyOrderDraft - 42');
+      // {orig} should refer to base name without .pdf extension and without _ or -
+      expect(name).toBe('My Order Draft 42');
     });
 
     it('uses fallbacks when number or FIO is missing or empty', () => {
@@ -208,13 +248,13 @@ describe('renamer', () => {
         originalName: 'scan.docx',
         settings,
       });
-      expect(nameNoFio).toBe('15 Без_ФИО');
+      expect(nameNoFio).toBe('15 Без ФИО');
     });
 
-    it('handles missing date cleanly without leaving dangling double delimiters', () => {
+    it('handles missing date cleanly without leaving dangling double spaces', () => {
       const customSettings = {
         ...settings,
-        template: '{date}_{number}_{fio}',
+        template: '{date} {number} {fio}',
       };
       const name = buildBaseFileName({
         orderNumber: '15',
@@ -223,40 +263,36 @@ describe('renamer', () => {
         originalName: 'scan.docx',
         settings: customSettings,
       });
-      // Should not start with an orphaned leading underscore or contain double underscores
-      expect(name).not.toMatch(/^_+/);
-      expect(name).not.toContain('__');
-      expect(name).toContain('15');
-      expect(name).toContain('Иванов');
+      expect(name).toBe('15 Иванов');
     });
   });
 
   describe('resolveBatchFileNames', () => {
     const settings: NamingSettings = {
-      template: '{number}_{fio}',
+      template: '{number} {fio}',
       normalizeFioCase: true,
-      fioFormat: 'full',
-      slashReplacement: '-',
+      fioFormat: 'initial',
+      slashReplacement: ' ',
       missingNumberLabel: 'БН',
-      missingFioLabel: 'Без_ФИО',
+      missingFioLabel: 'Без ФИО',
     };
 
-    it('assigns finalFileName preserving file extensions', () => {
+    it('assigns finalFileName preserving file extensions without underscores or extra symbols', () => {
       const items: OrderDocumentItem[] = [
-        createMockItem({ originalName: 'doc1.docx', extension: 'docx', editedNumber: '10', editedFio: 'Иванов' }),
-        createMockItem({ originalName: 'doc2.pdf', extension: 'pdf', editedNumber: '11', editedFio: 'Петров' }),
+        createMockItem({ originalName: 'doc1.docx', extension: 'docx', editedNumber: '650 ПР', editedFio: 'Искалиев Т.' }),
+        createMockItem({ originalName: 'doc2.pdf', extension: 'pdf', editedNumber: '11', editedFio: 'Петров П.' }),
       ];
 
       const resolved = resolveBatchFileNames(items, settings);
 
-      expect(resolved[0].finalFileName).toBe('10_Иванов.docx');
+      expect(resolved[0].finalFileName).toBe('650 ПР Искалиев Т..docx');
       expect(resolved[0].hasCollisionSuffix).toBe(false);
 
-      expect(resolved[1].finalFileName).toBe('11_Петров.pdf');
+      expect(resolved[1].finalFileName).toBe('11 Петров П..pdf');
       expect(resolved[1].hasCollisionSuffix).toBe(false);
     });
 
-    it('deduplicates collisions with sequential (2), (3) suffixes', () => {
+    it('deduplicates collisions with numeric suffixes without parentheses', () => {
       const items: OrderDocumentItem[] = [
         createMockItem({ originalName: 'a.docx', extension: 'docx', editedNumber: '12', editedFio: 'Сидоров' }),
         createMockItem({ originalName: 'b.docx', extension: 'docx', editedNumber: '12', editedFio: 'Сидоров' }),
@@ -265,13 +301,13 @@ describe('renamer', () => {
 
       const resolved = resolveBatchFileNames(items, settings);
 
-      expect(resolved[0].finalFileName).toBe('12_Сидоров.docx');
+      expect(resolved[0].finalFileName).toBe('12 Сидоров.docx');
       expect(resolved[0].hasCollisionSuffix).toBe(false);
 
-      expect(resolved[1].finalFileName).toBe('12_Сидоров (2).docx');
+      expect(resolved[1].finalFileName).toBe('12 Сидоров 2.docx');
       expect(resolved[1].hasCollisionSuffix).toBe(true);
 
-      expect(resolved[2].finalFileName).toBe('12_Сидоров (3).docx');
+      expect(resolved[2].finalFileName).toBe('12 Сидоров 3.docx');
       expect(resolved[2].hasCollisionSuffix).toBe(true);
     });
 
@@ -285,7 +321,7 @@ describe('renamer', () => {
 
       expect(resolved[0].hasCollisionSuffix).toBe(false);
       expect(resolved[1].hasCollisionSuffix).toBe(true);
-      expect(resolved[1].finalFileName).toMatch(/\(2\)\.docx$/i);
+      expect(resolved[1].finalFileName).toMatch(/ 2\.docx$/i);
     });
   });
 });

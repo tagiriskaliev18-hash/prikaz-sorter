@@ -30,8 +30,8 @@ export async function downloadAllAsZip(items: OrderDocumentItem[]): Promise<void
   }
 
   const blob = await zip.generateAsync({ type: 'blob' });
-  const today = new Date().toISOString().split('T')[0];
-  const zipFileName = `Переименованные_приказы_${today}.zip`;
+  const todayDot = new Date().toISOString().split('T')[0].replace(/-/g, '.');
+  const zipFileName = `Переименованные приказы ${todayDot}.zip`;
 
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

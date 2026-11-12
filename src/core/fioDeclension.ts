@@ -355,8 +355,11 @@ function matchCapitalization(original: string, target: string): string {
     .join('-');
 }
 
-function normalizeInitialsToken(token: string): string {
-  const letters = token.replace(/[^А-ЯЁӘІҢҒҮҰҚӨҺа-яёәіңғүұқөһ]/g, '').toUpperCase();
+function normalizeInitialsToken(token: string, maxInitials = 2): string {
+  const letters = token
+    .replace(/[^А-ЯЁӘІҢҒҮҰҚӨҺа-яёәіңғүұқөһ]/g, '')
+    .toUpperCase()
+    .slice(0, maxInitials);
   return letters
     .split('')
     .map((ch) => `${ch}.`)
@@ -731,10 +734,7 @@ export function normalizeFioToNominative(
   return cleaned;
 }
 
-/**
- * Formats a full FIO ("Иванов Иван Иванович") into short form ("Иванов И.И.").
- */
-export function formatFioShort(nominativeFio: string): string {
+function formatFioInitials(nominativeFio: string, maxInitials: number): string {
   const cleaned = nominativeFio.trim().replace(/\s+/g, ' ');
   if (!cleaned) return '';
 
@@ -742,15 +742,20 @@ export function formatFioShort(nominativeFio: string): string {
   if (parts.length === 1) return parts[0];
 
   if (INITIALS_RE.test(parts[0]) && parts[1]) {
-    return `${parts[1]} ${normalizeInitialsToken(parts[0])}`;
+    const surnameIndex = parts.findIndex((p, idx) => idx > 0 && !INITIALS_RE.test(p));
+    if (surnameIndex > 0) {
+      const initialsRaw = parts.slice(0, surnameIndex).join('');
+      return `${parts[surnameIndex]} ${normalizeInitialsToken(initialsRaw, maxInitials)}`;
+    }
+    return `${parts[1]} ${normalizeInitialsToken(parts[0], maxInitials)}`;
   }
 
   if (INITIALS_RE.test(parts[1])) {
-    return `${parts[0]} ${normalizeInitialsToken(parts.slice(1).join(''))}`;
+    return `${parts[0]} ${normalizeInitialsToken(parts.slice(1).join(''), maxInitials)}`;
   }
 
   const initials = parts
-    .slice(1, 3)
+    .slice(1, 1 + maxInitials)
     .map((p) => {
       const ch = p.replace(/[^А-ЯЁӘІҢҒҮҰҚӨҺа-яёәіңғүұқөһ]/g, '')[0];
       return ch ? `${ch.toUpperCase()}.` : '';
@@ -759,6 +764,20 @@ export function formatFioShort(nominativeFio: string): string {
     .join('');
 
   return initials ? `${parts[0]} ${initials}` : parts[0];
+}
+
+/**
+ * Formats a full FIO ("Иванов Иван Иванович") into short form ("Иванов И.И.").
+ */
+export function formatFioShort(nominativeFio: string): string {
+  return formatFioInitials(nominativeFio, 2);
+}
+
+/**
+ * Formats a FIO into surname + single first initial ("Искалиев Т.").
+ */
+export function formatFioInitial(nominativeFio: string): string {
+  return formatFioInitials(nominativeFio, 1);
 }
 
 /**

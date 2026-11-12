@@ -12,6 +12,7 @@ import {
   UserCheck,
 } from 'lucide-react';
 import type { OrderDocumentItem, FioCandidate } from '../core/types';
+import { formatFioInitial } from '../core/fioDeclension';
 
 interface OrderTableProps {
   items: OrderDocumentItem[];
@@ -243,7 +244,7 @@ export const OrderTable: React.FC<OrderTableProps> = ({
                         type="text"
                         value={item.editedNumber}
                         onChange={(e) => onUpdateNumber(item.id, e.target.value)}
-                        placeholder="№ приказа"
+                        placeholder="Номер (напр. 650 ПР)"
                         className={`table-input number-input mono ${
                           !item.editedNumber ? 'input-warning' : ''
                         }`}
@@ -279,7 +280,8 @@ export const OrderTable: React.FC<OrderTableProps> = ({
                                 item.editedFio.includes(cand.nominative) ||
                                 item.editedFio.includes(cand.shortNominative) ||
                                 item.editedFio === cand.nominative ||
-                                item.editedFio === cand.shortNominative;
+                                item.editedFio === cand.shortNominative ||
+                                item.editedFio === formatFioInitial(cand.nominative);
 
                               const roleLabel =
                                 cand.zone === 'signature'
@@ -366,8 +368,8 @@ export const OrderTable: React.FC<OrderTableProps> = ({
  * Highlights collision suffixes like (1), (2) or fallback tags like [без номера]
  */
 function renderHighlightedFileName(fileName: string, hasCollision: boolean) {
-  // Check for collision pattern e.g. " _(1)." or " (1)."
-  const collisionRegex = /([_ ]\(\d+\))(?=\.[^.]+$)/;
+  // Check for collision pattern e.g. " 2." or " 3."
+  const collisionRegex = /( \d+)(?=\.[^.]+$)/;
   const missingRegex = /(\[без [^\]]+\])/g;
 
   if (hasCollision && collisionRegex.test(fileName)) {

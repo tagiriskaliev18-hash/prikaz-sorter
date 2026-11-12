@@ -167,7 +167,10 @@ const FIO_STOPWORDS = new Set([
 const FORBIDDEN_NUMBER_CONTEXT_RE =
   /(?:иин|бин|инн|кпп|огрн|бик|рнн|окпо|иик|счет|счёт|р\/с|к\/с|тел\.?|телефон|факс|договор[а-яё]*|контракт[а-яё]*|соглашени[яе]|тд|заявлени[яе]|таб\.?|табельн[а-яё]*|справк[аи]|паспорт[а-яё]*|удостоверени[яе]|пункт[а-яё]*|п\.|ст\.|стать[яи]|акт[а-яё]*|приложени[яе]|лицензи[яи]|сертификат[а-яё]*|кз|kz|№\s*б\/с)\s*$/i;
 
-const ORDER_NUMBER_TOKEN = `[0-9A-Za-z${CYR_UPPER}${CYR_LOWER}][0-9A-Za-z${CYR_UPPER}${CYR_LOWER}\\/\\-–_.]{0,24}`;
+const ORDER_NUMBER_SPACE_SUFFIX =
+  `(?:[ \\t]+(?:ПР|П\\/Р|ЛС|Л\\/С|ОД|ЖҚ|Ж\\/Қ|АХД)(?![A-Za-z${CYR_UPPER}${CYR_LOWER}0-9]|\\.[ \\t]*[${CYR_UPPER}A-Z]))`;
+const ORDER_NUMBER_TOKEN =
+  `[0-9A-Za-z${CYR_UPPER}${CYR_LOWER}][0-9A-Za-z${CYR_UPPER}${CYR_LOWER}\\/\\-–_.]{0,24}${ORDER_NUMBER_SPACE_SUFFIX}?`;
 
 const SIGNER_LINE_RE =
   /^(?:генеральный\s+директор|директор|и\.?\s*о\.?\s*(?:генерального\s+)?директора|руководитель|врио\s+директора|председатель|президент|ректор|управляющий|начальник\s+управления|главный\s+врач|бас\s+директор|директоры|басшы|исполнитель|исп\.?|приказ\s+составил|согласовано|с\s+приказом\s+ознакомлен|м\.?\s*п\.?|таныстым|орындаушы)\b/i;
@@ -186,8 +189,8 @@ function cleanExtractedOrderNumber(raw: string): string | null {
   if (/^\d{8,}$/.test(num)) return null;
   // Reject pure dates DD.MM.YYYY or DD/MM/YYYY
   if (/^\d{1,2}[./-]\d{1,2}[./-]\d{2,4}$/.test(num)) return null;
-  // Normalize internal spaces around slash/dash if any
-  num = num.replace(/\s+/g, '');
+  // Normalize internal spaces around slash/dash while keeping spaces before suffixes like "650 ПР"
+  num = num.replace(/\s*([\/\-–])\s*/g, '$1').replace(/[ \t]+/g, ' ').trim();
   // Must contain at least one digit or be explicit "б/н"
   if (!/\d/.test(num) && !/^б\/н$/i.test(num)) return null;
   return num;

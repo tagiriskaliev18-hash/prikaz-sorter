@@ -9,7 +9,7 @@ interface SettingsBarProps {
 }
 
 const VARIABLE_CHIPS: Array<{ tag: string; label: string; desc: string }> = [
-  { tag: '{number}', label: '{номер}', desc: 'Номер приказа (напр. 142-к)' },
+  { tag: '{number}', label: '{номер}', desc: 'Номер приказа (напр. 650 ПР)' },
   { tag: '{fio}', label: '{фио}', desc: 'ФИО сотрудника в выбранном формате' },
   { tag: '{date}', label: '{дата}', desc: 'Дата приказа (ДД.ММ.ГГГГ)' },
   { tag: '{orig}', label: '{исходное}', desc: 'Исходное имя файла без расширения' },
@@ -27,7 +27,7 @@ export const SettingsBar: React.FC<SettingsBarProps> = ({ settings, onChange }) 
   const handleChipClick = (tag: string) => {
     const input = inputRef.current;
     if (!input) {
-      onChange({ ...settings, template: settings.template + '_' + tag });
+      onChange({ ...settings, template: `${settings.template} ${tag}`.trim() });
       return;
     }
 
@@ -50,7 +50,7 @@ export const SettingsBar: React.FC<SettingsBarProps> = ({ settings, onChange }) 
     onChange({ ...settings, fioFormat: mode });
   };
 
-  const handleSlashChange = (slashReplacement: '-' | '_' | '') => {
+  const handleSlashChange = (slashReplacement: ' ' | '') => {
     onChange({ ...settings, slashReplacement });
   };
 
@@ -105,7 +105,7 @@ export const SettingsBar: React.FC<SettingsBarProps> = ({ settings, onChange }) 
               value={settings.template}
               onChange={(e) => onChange({ ...settings, template: e.target.value })}
               className="template-text-input mono"
-              placeholder="{number}_{fio}"
+              placeholder="{number} {fio}"
             />
             <div className="variable-chips-container">
               <span className="chips-hint">Вставить:</span>
@@ -128,6 +128,14 @@ export const SettingsBar: React.FC<SettingsBarProps> = ({ settings, onChange }) 
         <div className="settings-field">
           <label className="field-label">Формат ФИО в имени</label>
           <div className="segmented-control">
+            <button
+              type="button"
+              className={`segmented-item ${settings.fioFormat === 'initial' ? 'active' : ''}`}
+              onClick={() => handleFioFormatChange('initial')}
+              title="Пример: Искалиев Т."
+            >
+              Фамилия И.
+            </button>
             <button
               type="button"
               className={`segmented-item ${settings.fioFormat === 'short' ? 'active' : ''}`}
@@ -157,29 +165,21 @@ export const SettingsBar: React.FC<SettingsBarProps> = ({ settings, onChange }) 
 
         {/* Row 3: Slash replacement */}
         <div className="settings-field">
-          <label className="field-label">Замена слэша в номере (напр. 142/к)</label>
+          <label className="field-label">Замена слэша в номере (напр. 650/ПР)</label>
           <div className="segmented-control">
             <button
               type="button"
-              className={`segmented-item ${settings.slashReplacement === '-' ? 'active' : ''}`}
-              onClick={() => handleSlashChange('-')}
-              title="Заменять / на дефис: 142-к"
+              className={`segmented-item ${settings.slashReplacement === ' ' ? 'active' : ''}`}
+              onClick={() => handleSlashChange(' ')}
+              title="Заменять / на пробел: 650 ПР"
             >
-              Дефис (-)
-            </button>
-            <button
-              type="button"
-              className={`segmented-item ${settings.slashReplacement === '_' ? 'active' : ''}`}
-              onClick={() => handleSlashChange('_')}
-              title="Заменять / на подчеркивание: 142_к"
-            >
-              Подчеркивание (_)
+              Пробел
             </button>
             <button
               type="button"
               className={`segmented-item ${settings.slashReplacement === '' ? 'active' : ''}`}
               onClick={() => handleSlashChange('')}
-              title="Удалять слэш: 142к"
+              title="Удалять слэш: 650ПР"
             >
               Убрать
             </button>

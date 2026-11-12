@@ -211,6 +211,12 @@ describe('orderParser', () => {
       expect(extractOrderNumber('Приказ No 88/2').number).toBe('88/2');
     });
 
+    it('extracts space-separated order series like "650 ПР" without capturing street abbreviations', () => {
+      expect(extractOrderNumber('ПРИКАЗ № 650 ПР от 12.11.2026').number).toBe('650 ПР');
+      expect(extractOrderNumber('БҰЙРЫҚ № 650 ПР').number).toBe('650 ПР');
+      expect(extractOrderNumber('ПРИКАЗ № 301 пр. Абая').number).toBe('301');
+    });
+
     it('extracts order number placed on newline after keyword', () => {
       const text = `
 ПРИКАЗ

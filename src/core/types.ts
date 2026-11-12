@@ -45,7 +45,7 @@ export interface ParsedOrder {
   warnings: string[];
 }
 
-export type FioFormatMode = 'full' | 'short' | 'surname';
+export type FioFormatMode = 'full' | 'short' | 'initial' | 'surname';
 
 export interface NamingSettings {
   /** Template string supporting {number}, {fio}, {date}, {orig} */
@@ -54,8 +54,8 @@ export interface NamingSettings {
   normalizeFioCase: boolean;
   /** How to format FIO in the final filename */
   fioFormat: FioFormatMode;
-  /** Replacement for '/' inside order numbers (e.g. '12/к' -> '12-к') */
-  slashReplacement: '-' | '_' | '';
+  /** Replacement for '/' inside order numbers (e.g. '650/ПР' -> '650 ПР') */
+  slashReplacement: ' ' | '';
   /** Fallback text when order number is missing */
   missingNumberLabel: string;
   /** Fallback text when FIO is missing */

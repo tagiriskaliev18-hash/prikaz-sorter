@@ -560,6 +560,7 @@ body {
 /* Segmented Control (Toggle buttons) */
 .segmented-control {
   display: flex;
+  flex-wrap: wrap;
   background-color: var(--canvas-bg);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
@@ -568,10 +569,10 @@ body {
 }
 
 .segmented-item {
-  flex: 1;
+  flex: 1 1 auto;
   background: transparent;
   border: none;
-  padding: 6px 12px;
+  padding: 6px 10px;
   font-size: 12px;
   font-weight: 500;
   color: var(--text-secondary);

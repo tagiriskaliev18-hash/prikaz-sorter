@@ -1,20 +1,25 @@
 import type { NamingSettings } from './types';
-import { extractSurname, formatFioShort, normalizeFioToNominative } from './fioDeclension';
+import {
+  extractSurname,
+  formatFioInitial,
+  formatFioShort,
+  normalizeFioToNominative,
+} from './fioDeclension';
 
 export const DEFAULT_NAMING_SETTINGS: NamingSettings = {
-  template: 'Приказ №{number} - {fio}',
+  template: '{number} {fio}',
   normalizeFioCase: true,
-  fioFormat: 'full',
-  slashReplacement: '-',
+  fioFormat: 'initial',
+  slashReplacement: ' ',
   missingNumberLabel: 'БН',
-  missingFioLabel: 'Без_ФИО',
+  missingFioLabel: 'Без ФИО',
 };
 
 export const TEMPLATE_PRESETS: Array<{ id: string; label: string; template: string }> = [
-  { id: 'standard', label: 'Приказ №123 - Иванов И.И.', template: 'Приказ №{number} - {fio}' },
-  { id: 'compact', label: '№123 Иванов И.И.', template: '№{number} {fio}' },
-  { id: 'underscore', label: 'Приказ_123_Иванов_И.И.', template: 'Приказ_{number}_{fio}' },
-  { id: 'fio_first', label: 'Иванов И.И. - Приказ №123', template: '{fio} - Приказ №{number}' },
+  { id: 'standard', label: '650 ПР Искалиев Т.', template: '{number} {fio}' },
+  { id: 'with_word', label: 'Приказ 650 ПР Искалиев Т.', template: 'Приказ {number} {fio}' },
+  { id: 'with_date', label: '12.02.2026 650 ПР Искалиев Т.', template: '{date} {number} {fio}' },
+  { id: 'fio_first', label: 'Искалиев Т. 650 ПР', template: '{fio} {number}' },
 ];
 
 const WINDOWS_RESERVED_NAMES = new Set([
@@ -43,17 +48,21 @@ const WINDOWS_RESERVED_NAMES = new Set([
 ]);
 
 /**
- * Sanitizes a filename or filename segment for Windows, macOS, and Linux filesystems.
+ * Sanitizes a filename or filename segment for Windows, macOS, Linux, and ЭХД/ECM systems.
+ * Allows only letters, digits, spaces, and dots (.) — strips underscores, hyphens, №, and all other punctuation.
  */
 export function sanitizeFileNamePart(
   value: string,
-  slashReplacement: '-' | '_' | '' = '-',
+  slashReplacement: ' ' | '' = ' ',
 ): string {
-  // Replace forward/back slashes carefully (e.g. "12/л" -> "12-л")
-  let clean = value.replace(/[\\/]+/g, slashReplacement);
-  // Strip remaining invalid characters and ASCII control chars
+  // Replace slashes cleanly per setting and turn hyphens/underscores/dashes into spaces
+  let clean = value
+    .replace(/[\\/]+/g, slashReplacement)
+    .replace(/[-–—_]+/g, ' ');
+  // Keep only letters, digits, whitespace, and dots (.)
   clean = clean
-    .replace(/[\x00-\x1f\x7f<>:"|?*]/g, '')
+    .replace(/[^\p{L}\p{N}.\s]/gu, '')
+    .replace(/\.{2,}/g, '.')
     .replace(/\s+/g, ' ')
     .trim();
 
@@ -61,14 +70,14 @@ export function sanitizeFileNamePart(
   clean = clean.replace(/[. ]+$/, '');
 
   if (WINDOWS_RESERVED_NAMES.has(clean.toUpperCase())) {
-    clean = `_${clean}`;
+    clean = `Файл ${clean}`;
   }
 
   return clean;
 }
 
 /**
- * Applies user FIO normalization and brevity settings (full, short "Иванов И.И.", surname).
+ * Applies user FIO normalization and brevity settings (full, short "Иванов И.И.", initial "Искалиев Т.", surname).
  */
 export function formatFioBySettings(
   rawFio: string,
@@ -78,6 +87,9 @@ export function formatFioBySettings(
   const source = (settings.normalizeFioCase ? nominativeFio || normalizeFioToNominative(rawFio) : rawFio).trim();
   if (!source) return '';
 
+  if (settings.fioFormat === 'initial') {
+    return formatFioInitial(source);
+  }
   if (settings.fioFormat === 'short') {
     return formatFioShort(source);
   }
@@ -118,13 +130,8 @@ export function buildBaseFileName(params: {
     .replace(/\{date\}/g, dateVal)
     .replace(/\{orig\}/g, origVal);
 
-  // Clean up orphaned separators when optional variables like {date} are empty
-  rendered = rendered
-    .replace(/\s+-\s+-/g, ' -')
-    .replace(/__+/g, '_')
-    .replace(/--+/g, '-')
-    .replace(/\(\s*\)/g, '')
-    .replace(/^[-_\s]+|[-_\s]+$/g, '');
+  // Clean up redundant whitespace when optional variables like {date} are empty
+  rendered = rendered.replace(/\s+/g, ' ').trim();
 
   const endsWithInitialDot = /(?:^|[\s._-])[А-ЯЁӘІҢҒҮҰҚӨҺA-Z]\.$/.test(rendered);
   let sanitized = sanitizeFileNamePart(rendered, settings.slashReplacement);
@@ -182,10 +189,10 @@ export function resolveBatchFileNames<
     }
 
     let suffixNum = seenCount + 1;
-    let uniqueName = `${base} (${suffixNum})${ext}`;
+    let uniqueName = `${base} ${suffixNum}${ext}`;
     while (usedNames.has(uniqueName.toLowerCase())) {
       suffixNum++;
-      uniqueName = `${base} (${suffixNum})${ext}`;
+      uniqueName = `${base} ${suffixNum}${ext}`;
     }
 
     usedNames.set(candidateLower, suffixNum);

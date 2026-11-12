@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   normalizeFioToNominative,
   formatFioShort,
+  formatFioInitial,
   extractSurname,
 } from '../src/core/fioDeclension';
 
@@ -184,6 +185,16 @@ describe('fioDeclension', () => {
     it('handles Kazakh full names with -ұлы / -қызы patronymics', () => {
       const shortFio = formatFioShort('Ахметов Серик Нұрланұлы');
       expect(shortFio).toMatch(/^Ахметов С\./);
+    });
+  });
+
+  describe('formatFioInitial', () => {
+    it('formats full or shortened FIO into "Фамилия И."', () => {
+      expect(formatFioInitial('Искалиев Талгат Маратович')).toBe('Искалиев Т.');
+      expect(formatFioInitial('Искалиев Талгат')).toBe('Искалиев Т.');
+      expect(formatFioInitial('Искалиев Т.М.')).toBe('Искалиев Т.');
+      expect(formatFioInitial('Т.М. Искалиев')).toBe('Искалиев Т.');
+      expect(formatFioInitial('Искалиев')).toBe('Искалиев');
     });
   });
 
